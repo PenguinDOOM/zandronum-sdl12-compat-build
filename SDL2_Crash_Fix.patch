@@ -1,0 +1,39 @@
+diff --git a/src/video/x11/SDL_x11messagebox.c b/src/video/x11/SDL_x11messagebox.c
+index 9bc9702c0..485696431 100644
+--- a/src/video/x11/SDL_x11messagebox.c
++++ b/src/video/x11/SDL_x11messagebox.c
+@@ -778,7 +778,7 @@ X11_ShowMessageBoxImpl(const SDL_MessageBoxData *messageboxdata, int *buttonid)
+ #endif
+ 
+     /* This code could get called from multiple threads maybe? */
+-    X11_XInitThreads();
++    //X11_XInitThreads();
+ 
+     /* Initialize the return buttonid value to -1 (for error or dialogbox closed). */
+     *buttonid = -1;
+diff --git a/src/video/x11/SDL_x11sym.h b/src/video/x11/SDL_x11sym.h
+index 762a86596..8fbba0153 100644
+--- a/src/video/x11/SDL_x11sym.h
++++ b/src/video/x11/SDL_x11sym.h
+@@ -98,7 +98,7 @@ SDL_X11_SYM(Status,XMatchVisualInfo,(Display* a,int b,int c,int d,XVisualInfo* e
+ SDL_X11_SYM(int,XMissingExtension,(Display* a,_Xconst char* b),(a,b),return)
+ SDL_X11_SYM(int,XMoveWindow,(Display* a,Window b,int c,int d),(a,b,c,d),return)
+ SDL_X11_SYM(Display*,XOpenDisplay,(_Xconst char* a),(a),return)
+-SDL_X11_SYM(Status,XInitThreads,(void),(),return)
++//SDL_X11_SYM(Status,XInitThreads,(void),(),return)
+ SDL_X11_SYM(int,XPeekEvent,(Display* a,XEvent* b),(a,b),return)
+ SDL_X11_SYM(int,XPending,(Display* a),(a),return)
+ SDL_X11_SYM(int,XPutImage,(Display* a,Drawable b,GC c,XImage* d,int e,int f,int g,int h,unsigned int i,unsigned int j),(a,b,c,d,e,f,g,h,i,j),return)
+diff --git a/src/video/x11/SDL_x11video.c b/src/video/x11/SDL_x11video.c
+index fc8c878fb..1dbfbda3d 100644
+--- a/src/video/x11/SDL_x11video.c
++++ b/src/video/x11/SDL_x11video.c
+@@ -162,7 +162,7 @@ X11_CreateDevice(int devindex)
+ 
+     /* Need for threading gl calls. This is also required for the proprietary
+         nVidia driver to be threaded. */
+-    X11_XInitThreads();
++    //X11_XInitThreads();
+ 
+     /* Open the display first to be sure that X11 is available */
+     x11_display = X11_XOpenDisplay(display);

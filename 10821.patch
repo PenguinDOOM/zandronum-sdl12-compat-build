@@ -1,0 +1,20 @@
+# HG changeset patch
+# User Adam Kaminski <kaminskiadam9@gmail.com>
+# Date 1650830457 14400
+#      Sun Apr 24 16:00:57 2022 -0400
+# Node ID 5f4985f686e6c10b51642a3273109a5104712a08
+# Parent  428739fa5a92de3c3fa5ed00cfbadda637ceeece
+Removed glext.h to fix compile errors on Fedora.
+
+diff -r 428739fa5a92 -r 5f4985f686e6 src/gl/system/gl_system.h
+--- a/src/gl/system/gl_system.h	Fri Apr 22 11:13:46 2022 -0400
++++ b/src/gl/system/gl_system.h	Sun Apr 24 16:00:57 2022 -0400
+@@ -72,7 +72,7 @@
+ #include <OpenGL/OpenGL.h>
+ #elif defined(__unix__)
+ #include <GL/glew.h>
+-#include "gl/api/glext.h"
++// #include "gl/api/glext.h" [AK] Commented this out to fix compile errors on Fedora.
+ #else // !__APPLE__ && !__unix__
+ #include <GL/gl.h>
+ #include <GL/glu.h>

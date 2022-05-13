@@ -1,0 +1,260 @@
+diff -r 4178904d7698 src/gl/textures/gl_material.cpp
+--- a/src/gl/textures/gl_material.cpp	Sat Dec 11 16:35:55 2021 -0500
++++ b/src/gl/textures/gl_material.cpp	Mon Apr 25 21:04:13 2022 +0300
+@@ -203,7 +203,7 @@
+ 	static_cast<FWarpTexture*>(tex)->GenTime = r_FrameTime;
+ 
+ 	static DWORD linebuffer[256];	// anything larger will bring down performance so it is excluded above.
+-	DWORD timebase = DWORD(r_FrameTime*Speed*23/28);
++	QWORD timebase = QWORD(r_FrameTime*Speed*23/28);
+ 	int xsize = Width;
+ 	int ysize = Height;
+ 	int xmask = xsize - 1;
+@@ -225,7 +225,7 @@
+ 				*dest = *(source+(yf<<ds_xbits));
+ 			}
+ 		}
+-		timebase = DWORD(r_FrameTime*Speed*32/28);
++		timebase = QWORD(r_FrameTime*Speed*32/28);
+ 		int y;
+ 		for (y = ysize-1; y >= 0; y--)
+ 		{
+@@ -244,7 +244,7 @@
+ 		int ybits;
+ 		for(ybits=-1,i=ysize; i; i>>=1, ybits++);
+ 
+-		DWORD timebase = (r_FrameTime * Speed * 40 / 28);
++		QWORD timebase = (r_FrameTime * Speed * 40 / 28);
+ 		for (x = xsize-1; x >= 0; x--)
+ 		{
+ 			for (int y = ysize-1; y >= 0; y--)
+diff -r 4178904d7698 src/r_utility.cpp
+--- a/src/r_utility.cpp	Sat Dec 11 16:35:55 2021 -0500
++++ b/src/r_utility.cpp	Mon Apr 25 21:04:13 2022 +0300
+@@ -130,7 +130,7 @@
+ AActor			*camera;	// [RH] camera to draw from. doesn't have to be a player
+ 
+ fixed_t			r_TicFrac;			// [RH] Fractional tic to render
+-DWORD			r_FrameTime;		// [RH] Time this frame started drawing (in ms)
++QWORD			r_FrameTime;		// [RH] Time this frame started drawing (in ns)
+ bool			r_NoInterpolate;
+ bool			r_showviewer;
+ 
+diff -r 4178904d7698 src/r_utility.h
+--- a/src/r_utility.h	Sat Dec 11 16:35:55 2021 -0500
++++ b/src/r_utility.h	Mon Apr 25 21:04:13 2022 +0300
+@@ -34,7 +34,7 @@
+ extern int				WidescreenRatio;
+ 
+ extern fixed_t			r_TicFrac;
+-extern DWORD			r_FrameTime;
++extern QWORD			r_FrameTime;
+ extern int				extralight;
+ extern unsigned int		R_OldBlend;
+ 
+diff -r 4178904d7698 src/sdl/i_system.cpp
+--- a/src/sdl/i_system.cpp	Sat Dec 11 16:35:55 2021 -0500
++++ b/src/sdl/i_system.cpp	Mon Apr 25 21:04:13 2022 +0300
+@@ -82,6 +82,8 @@
+ #include "cl_main.h"
+ #include "v_text.h"
+ 
++#include <chrono>
++
+ #ifdef USE_XCURSOR
+ // Xlib has its own GC, so don't let it interfere.
+ #define GC XGC
+@@ -140,71 +142,81 @@
+ {
+ }
+ 
+-
+-static DWORD TicStart;
+-static DWORD TicNext;
+-static DWORD BaseTime;
++static QWORD TicStart;
++static QWORD BaseTime;
+ static int TicFrozen;
+ 
+ // Signal based timer.
+ static Semaphore timerWait;
+ static int tics;
+-static DWORD sig_start, sig_next;
++static QWORD sig_start;
+ 
+ void I_SelectTimer();
+ 
+-// [RH] Returns time in milliseconds
+-unsigned int I_MSTime (void)
++static QWORD GetClockTimeNS()
++{
++	using namespace std::chrono;
++	return (QWORD)(duration_cast<nanoseconds>(steady_clock::now().time_since_epoch()).count());
++}
++
++
++static QWORD NSToMS(QWORD ns)
+ {
+-	unsigned int time = SDL_GetTicks ();
+-	return time - BaseTime;
++	return static_cast<QWORD>(ns / 1'000'000);
++}
++
++
++
++// [RH] Returns time in milliseconds
++unsigned long I_MSTime(void)
++{
++	QWORD time = GetClockTimeNS();
++	return NSToMS(time - BaseTime);
+ }
+ 
+ // Exactly the same thing, but based does no modification to the time.
+-unsigned int I_FPSTime()
++unsigned long I_FPSTime()
+ {
+-	return SDL_GetTicks();
++	return NSToMS(GetClockTimeNS());
+ }
+ 
+ //
+ // I_GetTime
+ // returns time in 1/35th second tics
+ //
+-int I_GetTimeSelect (bool saveMS)
++int I_GetTimeSelect (bool saveNS)
+ {
+ 	I_SelectTimer();
+-	return I_GetTime (saveMS);
++	return I_GetTime (saveNS);
+ }
+ 
+-int I_GetTimePolled (bool saveMS)
++int I_GetTimePolled (bool saveNS)
+ {
+ 	if (TicFrozen != 0)
+ 	{
+ 		return TicFrozen;
+ 	}
+ 
+-	DWORD tm = SDL_GetTicks();
++	QWORD tm = GetClockTimeNS();
+ 
+-	if (saveMS)
++	if (saveNS)
+ 	{
+ 		// [Leo] Replaced the expressions for TicStart and TicNext below.
+ 		/*
+ 		TicStart = tm;
+-		TicNext = Scale((Scale (tm, TICRATE, 1000) + 1), 1000, TICRATE);
+ 		*/
+-		DWORD CurrentTic = ((tm - BaseTime) * TICRATE) / 1000;
+-		TicStart = (CurrentTic * 1000 / TICRATE) + BaseTime;
+-		TicNext = ((CurrentTic + 1) * 1000 / TICRATE) + BaseTime;
++		QWORD CurrentTic = ((tm - BaseTime) * TICRATE) / 1'000'000'000;
++		TicStart = (CurrentTic * 1'000'000'000 / TICRATE) + BaseTime;
+ 	}
+-	return Scale(tm - BaseTime, TICRATE, 1000);
++
++	return ((tm - BaseTime) * TICRATE) / 1'000'000'000;
+ }
+ 
+-int I_GetTimeSignaled (bool saveMS)
++int I_GetTimeSignaled (bool saveNS)
+ {
+-	if (saveMS)
+-	{
++    if (saveNS)
++	{
+ 		TicStart = sig_start;
+-		TicNext = sig_next;
+ 	}
+ 	return tics;
+ }
+@@ -251,7 +263,7 @@
+ 		int froze = TicFrozen;
+ 		TicFrozen = 0;
+ 		int now = I_GetTimePolled(false);
+-		BaseTime += (now - froze) * 1000 / TICRATE;
++		BaseTime += (now - froze) * 1'000'000'000 / TICRATE;
+ 	}
+ }
+ 
+@@ -274,8 +286,7 @@
+ {
+ 	if(!TicFrozen)
+ 		tics++;
+-	sig_start = SDL_GetTicks();
+-	sig_next = Scale((Scale (sig_start, TICRATE, 1000) + 1), 1000, TICRATE);
++	sig_start = GetClockTimeNS();
+ 	SEMAPHORE_SIGNAL(timerWait)
+ }
+ 
+@@ -315,18 +326,17 @@
+ }
+ 
+ // Returns the fractional amount of a tic passed since the most recent tic
+-fixed_t I_GetTimeFrac (uint32 *ms)
++fixed_t I_GetTimeFrac (uint64_t *ns)
+ {
+-	DWORD now = SDL_GetTicks ();
+-	if (ms) *ms = TicNext;
+-	DWORD step = TicNext - TicStart;
+-	if (step == 0)
++	QWORD now = GetClockTimeNS();
++	if (ns) *ns = TicStart + (1'000'000'000 / TICRATE);
++	if (TicStart == 0)
+ 	{
+ 		return FRACUNIT;
+ 	}
+ 	else
+ 	{
+-		fixed_t frac = clamp<fixed_t> ((now - TicStart)*FRACUNIT/step, 0, FRACUNIT);
++		fixed_t frac = clamp<fixed_t> ((now - TicStart)*FRACUNIT*TICRATE/1'000'000'000, 0, FRACUNIT);
+ 		return frac;
+ 	}
+ }
+@@ -356,6 +366,8 @@
+ 	I_GetTime = I_GetTimeSelect;
+ 	I_WaitForTic = I_WaitForTicSelect;
+ 	I_FreezeTime = I_FreezeTimeSelect;
++
++	BaseTime = GetClockTimeNS();
+ 	atterm (I_ShutdownSound);
+     I_InitSound ();
+ }
+diff -r 4178904d7698 src/sdl/i_system.h
+--- a/src/sdl/i_system.h	Sat Dec 11 16:35:55 2021 -0500
++++ b/src/sdl/i_system.h	Mon Apr 25 21:04:13 2022 +0300
+@@ -62,7 +62,7 @@
+ // tic will never arrive (unless it's the current one).
+ extern void (*I_FreezeTime) (bool frozen);
+ 
+-fixed_t I_GetTimeFrac (uint32 *ms);
++fixed_t I_GetTimeFrac (uint64_t *ns);
+ 
+ // Return a seed value for the RNG.
+ unsigned int I_MakeRNGSeed();
+@@ -124,8 +124,8 @@
+ bool I_WriteIniFailed ();
+ 
+ // [RH] Returns millisecond-accurate time
+-unsigned int I_MSTime (void);
+-unsigned int I_FPSTime();
++unsigned long I_MSTime (void);
++unsigned long I_FPSTime();
+ 
+ class FTexture;
+ bool I_SetCursor(FTexture *);
+diff -r 4178904d7698 src/textures/textures.h
+--- a/src/textures/textures.h	Sat Dec 11 16:35:55 2021 -0500
++++ b/src/textures/textures.h	Mon Apr 25 21:04:13 2022 +0300
+@@ -570,7 +570,7 @@
+ 	void SetSpeed(float fac) { Speed = fac; }
+ 	FTexture *GetRedirect(bool wantwarped);
+ 
+-	DWORD GenTime;
++	QWORD GenTime;
+ protected:
+ 	FTexture *SourcePic;
+ 	BYTE *Pixels;
